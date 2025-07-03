@@ -1,0 +1,24 @@
+{
+  "name": "pricedb-io-tests",
+  "version": "1.0.0",
+  "description": "Test suite for pricedb.io services",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:verbose": "jest --verbose"
+  },
+  "keywords": ["pricedb", "testing", "jest", "api"],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "jest": "^29.7.0",
+    "jest-environment-node": "^29.7.0"
+  },
+  "dependencies": {
+    "axios": "^1.6.7",
+    "socket.io-client": "^4.7.4"
+  }
+}
