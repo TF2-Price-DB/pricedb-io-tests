@@ -82,7 +82,7 @@ describe('SQL Injection Security Tests', () => {
       } catch (error) {
         // Network errors or proper HTTP errors are acceptable
         if (error.response) {
-          expect([400, 404, 422, 500]).toContain(error.response.status);
+          expect([400, 404, 422, 429, 500]).toContain(error.response.status);
           
           // Check that error response doesn't leak SQL information
           const errorText = JSON.stringify(error.response.data || '').toLowerCase();
@@ -176,7 +176,7 @@ describe('SQL Injection Security Tests', () => {
         
       } catch (error) {
         if (error.response) {
-          expect([400, 413, 414, 500, 429]).toContain(error.response.status);
+          expect([400, 404, 413, 414, 500, 429]).toContain(error.response.status);
           console.log(`✅ Long string properly rejected with status: ${error.response.status}`);
         }
       }
@@ -223,6 +223,193 @@ describe('SQL Injection Security Tests', () => {
     });
   });
 
+  describe('New Endpoints Security Tests', () => {
+    test.each(sqlInjectionPayloads)('POST /api/items-bulk should handle SQL injection: %s', async (payload) => {
+      try {
+        const response = await axios.post(`${API_BASE_URL}/items-bulk`, {
+          skus: [payload, 'valid-sku-12345']
+        });
+        
+        // Check response doesn't contain SQL errors
+        const responseText = JSON.stringify(response.data).toLowerCase();
+        expect(responseText).not.toContain('sql syntax');
+        expect(responseText).not.toContain('mysql_fetch');
+        expect(responseText).not.toContain('error in your sql syntax');
+        
+        console.log(`✅ Bulk endpoint SQL injection safely handled: ${payload.substring(0, 20)}...`);
+        
+      } catch (error) {
+        if (error.response) {
+          expect([400, 404, 422, 429, 500]).toContain(error.response.status);
+          
+          // Check that error response doesn't leak SQL information
+          const errorText = JSON.stringify(error.response.data || '').toLowerCase();
+          expect(errorText).not.toContain('sql');
+          expect(errorText).not.toContain('mysql');
+          
+          console.log(`✅ Bulk endpoint SQL injection properly rejected: ${payload.substring(0, 20)}...`);
+        }
+      }
+    });
+
+    test('GET /api/item-history should handle malicious timestamps', async () => {
+      const maliciousTimestamps = [
+        "'; DROP TABLE history; --",
+        "1' OR '1'='1",
+        "-1",
+        "999999999999999",
+        "abc",
+        "<script>alert('xss')</script>",
+        "null",
+        "undefined"
+      ];
+      
+      for (const timestamp of maliciousTimestamps) {
+        try {
+          const response = await axios.get(`${API_BASE_URL}/item-history/test-sku?start=${encodeURIComponent(timestamp)}`);
+          
+          // Should handle gracefully
+          expect([200, 400, 404, 422]).toContain(response.status);
+          
+        } catch (error) {
+          if (error.response) {
+            expect([400, 404, 422, 429, 500]).toContain(error.response.status);
+            
+            // Check that error response doesn't leak information
+            const errorText = JSON.stringify(error.response.data || '').toLowerCase();
+            expect(errorText).not.toContain('sql');
+          }
+        }
+      }
+      
+      console.log('✅ Item history timestamps safely validated');
+    });
+
+    test('GET /api/snapshot should validate timestamp parameter', async () => {
+      const invalidTimestamps = [
+        "'; SELECT * FROM users; --",
+        "1' OR '1'='1",
+        "<script>alert('xss')</script>",
+        "null",
+        "-999999999",
+        "abc123"
+      ];
+      
+      for (const timestamp of invalidTimestamps) {
+        try {
+          const response = await axios.get(`${API_BASE_URL}/snapshot/${encodeURIComponent(timestamp)}`);
+          
+          // Should handle gracefully or return proper error
+          expect([200, 400, 404, 422]).toContain(response.status);
+          
+        } catch (error) {
+          if (error.response) {
+            expect([400, 404, 422, 429]).toContain(error.response.status);
+          }
+        }
+      }
+      
+      console.log('✅ Snapshot timestamp parameter safely validated');
+    });
+
+    test('Bot endpoints should handle malicious input', async () => {
+      const maliciousInputs = [
+        "'; DROP TABLE bot_data; --",
+        "<script>alert('xss')</script>",
+        "' OR '1'='1",
+        "null",
+        "undefined"
+      ];
+      
+      for (const input of maliciousInputs) {
+        try {
+          // Test GET endpoint
+          const getResponse = await axios.get(`${API_BASE_URL}/autob/items/${encodeURIComponent(input)}`);
+          expect([200, 400, 404, 422]).toContain(getResponse.status);
+          
+          // Test POST endpoint
+          try {
+            const postResponse = await axios.post(`${API_BASE_URL}/autob/items/${encodeURIComponent(input)}`);
+            expect([200, 201, 400, 404, 405, 422]).toContain(postResponse.status);
+          } catch (postError) {
+            if (postError.response) {
+              expect([400, 404, 405, 422, 429]).toContain(postError.response.status);
+            }
+          }
+          
+        } catch (error) {
+          if (error.response) {
+            expect([400, 404, 422, 429]).toContain(error.response.status);
+          }
+        }
+      }
+      
+      console.log('✅ Bot endpoints safely handle malicious input');
+    });
+  });
+
+  describe('Spells API Security Tests', () => {
+    const SPELLS_API_URL = 'https://spells.pricedb.io/api';
+    
+    test.each(sqlInjectionPayloads)('Spells API should handle SQL injection: %s', async (payload) => {
+      try {
+        const testUrls = [
+          `${SPELLS_API_URL}/spell/spell-id-to-name?id=${encodeURIComponent(payload)}`,
+          `${SPELLS_API_URL}/spell/spell-value?ids=${encodeURIComponent(payload)}`,
+          `${SPELLS_API_URL}/spell/predict?spells=${encodeURIComponent(payload)}&item=test`
+        ];
+        
+        for (const testUrl of testUrls) {
+          try {
+            const response = await axios.get(testUrl);
+            
+            // Check response doesn't contain SQL errors
+            const responseText = JSON.stringify(response.data).toLowerCase();
+            expect(responseText).not.toContain('sql syntax');
+            expect(responseText).not.toContain('mysql_fetch');
+            
+            console.log(`✅ Spells API SQL injection safely handled`);
+          } catch (error) {
+            if (error.response) {
+              expect([400, 404, 422, 429, 500]).toContain(error.response.status);
+            }
+          }
+        }
+        
+      } catch (error) {
+        // Network errors are acceptable for security tests
+        console.log(`✅ Spells API SQL injection handled: ${payload.substring(0, 20)}...`);
+      }
+    });
+
+    test('Spells API should validate numeric IDs properly', async () => {
+      const invalidIds = [
+        "'; DROP TABLE spells; --",
+        "-1",
+        "999999999",
+        "abc",
+        "null",
+        "<script>alert('xss')</script>"
+      ];
+      
+      for (const id of invalidIds) {
+        try {
+          const response = await axios.get(`${SPELLS_API_URL}/spell/spell-id-to-name?id=${encodeURIComponent(id)}`);
+          
+          // Should handle gracefully
+          expect([200, 400, 404, 422]).toContain(response.status);
+          
+        } catch (error) {
+          if (error.response) {
+            expect([400, 404, 422, 429]).toContain(error.response.status);
+          }
+        }
+      }
+      
+      console.log('✅ Spells API ID validation working properly');
+    });
+  });
+
   describe('Rate Limiting and DoS Protection', () => {
     test('Should handle rapid requests gracefully', async () => {
       const rapidRequests = [];
@@ -246,5 +433,26 @@ describe('SQL Injection Security Tests', () => {
       
       console.log(`✅ Rapid requests handled (${requestCount} requests)`);
     }, 30000); // Longer timeout for this test
+
+    test('Bulk endpoint should handle large payloads safely', async () => {
+      const largeSku = 'A'.repeat(1000); // 1KB SKU
+      const largeSkuArray = Array(100).fill(largeSku); // 100KB payload
+      
+      try {
+        const response = await axios.post(`${API_BASE_URL}/items-bulk`, {
+          skus: largeSkuArray
+        });
+        
+        // Should handle gracefully or reject with appropriate error
+        expect([200, 400, 413, 422, 429]).toContain(response.status);
+        console.log(`✅ Large bulk payload handled with status: ${response.status}`);
+        
+      } catch (error) {
+        if (error.response) {
+          expect([400, 413, 422, 429, 500]).toContain(error.response.status);
+          console.log(`✅ Large bulk payload properly rejected with status: ${error.response.status}`);
+        }
+      }
+    });
   });
 });

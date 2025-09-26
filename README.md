@@ -1,39 +1,84 @@
 # PriceDB.io Test Suite
 
-A comprehensive Jest test suite for testing the pricedb.io services and APIs.
+A comprehensive Jest test suite for testing the pricedb.io ecosystem services and APIs.
 
 ## What's Tested
 
 ### 1. Main Website (https://pricedb.io/)
 - Site reachability and response times
+- Content validation and key sections
+- Navigation links to new pages (/search, /stats, /api-docs)
 - Basic security headers
-- HTML content validation
 
-### 2. WebSocket Service (ws.pricedb.io:5500)
-- Connection establishment
-- Ping/pong functionality
-- Connection stability
-- Multiple concurrent connections
-
-### 3. Status API (https://status.pricedb.io/api/status)
-- API reachability and JSON response
-- Service structure validation
-- Expected services presence
-- External services status
-- Response time performance
-
-### 4. Main API (https://pricedb.io/api)
-- **Health Check** (`/api/`) - Returns `{"status":"ok","db":"ok"}`
+### 2. Main API (https://pricedb.io/api)
+**Core Endpoints:**
+- **Health Check** (`/api/`) - Returns service status and database connectivity
 - **Items List** (`/api/items`) - Returns all unique items with name and SKU
 - **Latest Prices** (`/api/latest-prices`) - Returns latest price entry for each SKU
+- **All Prices** (`/api/prices`) - Returns complete price history
 - **Individual Item** (`/api/item/<sku>`) - Returns latest price for specific item
-- Error handling for invalid endpoints and malformed requests
 
-### 5. Security Testing
-- **SQL Injection Protection** - Tests all API endpoints against common SQL injection payloads
-- **XSS Protection** - Validates proper handling of cross-site scripting attempts
-- **Input Validation** - Tests handling of special characters, long strings, and control characters
-- **Rate Limiting** - Checks protection against rapid request attacks
+**New Advanced Endpoints:**
+- **Item History** (`/api/item-history/<sku>`) - Full price history for specific item with time filtering
+- **Item Statistics** (`/api/item-stats/<sku>`) - Min/max/avg statistics for item prices
+- **Price Chart** (`/api/graph/<sku>`) - HTML chart visualization (with header=false option)
+- **Bulk Lookup** (`POST /api/items-bulk`) - Bulk item price lookup
+- **Historical Snapshot** (`/api/snapshot/<timestamp>`) - Market snapshot at specific time
+
+**Bot Integration Endpoints:**
+- **Bot Pricelist** (`/api/autob/items`) - Full pricelist for TF2Autobot integration
+- **Bot Single Item** (`/api/autob/items/<sku>`) - Single item for bot integration
+- **Bot Price Check** (`POST /api/autob/items/<sku>`) - Price check endpoint
+
+**Rate Limiting:** 180 requests per minute per IP
+
+### 3. Spells API (https://spells.pricedb.io/api) - NEW SERVICE
+**Service & Health:**
+- **Health Check** (`/api/health`) - Service health with database status
+- **Statistics** (`/api/stats`) - Live service stats (listings, spells, avg premium)
+
+**Spell Data:**
+- **All Spells** (`/api/spell/spells`) - List all available spells with IDs
+- **Spell ID to Name** (`/api/spell/spell-id-to-name`) - Convert spell ID to readable name
+
+**Analytics & Predictions:**
+- **Spell Analytics** (`/api/spell/spell-analytics`) - Comprehensive spell combination analytics
+- **Spell Value** (`/api/spell/spell-value`) - Premium calculations for spell combinations
+- **Enhanced Prediction** (`/api/spell/predict`) - Advanced spell price predictions with market data
+- **Item-Specific Premium** (`/api/spell/item-spell-premium`) - Calculate premium for specific items
+
+**Rate Limiting:** 100 requests per minute per IP
+
+### 4. Status API (https://status.pricedb.io/api/status) - UPDATED FORMAT
+**Core Services Monitoring:**
+- Service categories (core, internal)
+- Uptime percentage and history bars
+- Real-time metrics (memory, CPU, restarts)
+
+**New Services Tracked:**
+- **Relay Service** - WebSocket relay with connection metrics
+- **Spell Handler** - Spell processing service with database status
+- **Updated Service Structure** - Category-based organization
+
+**External Services:**
+- Backpack.tf connectivity with uptime tracking
+- Steam login status with history
+- TF2 API and Web API monitoring
+
+### 5. WebSocket Service (ws.pricedb.io:5500)
+- Connection establishment and stability
+- Ping/pong functionality
+- Multiple concurrent connections
+- Real-time price update support
+
+### 6. Security Testing - EXPANDED
+**Comprehensive Security Coverage:**
+- **SQL Injection Protection** - Tests all endpoints including new ones (bulk, history, snapshots, spells)
+- **XSS Protection** - Validates proper input escaping across all services
+- **Input Validation** - Special characters, long strings, control characters
+- **Parameter Validation** - Timestamp validation, ID validation, malicious payloads
+- **Rate Limiting** - DoS protection testing
+- **Multi-Service Security** - Tests main API, spells API, and bot endpoints
 
 ## Installation
 
@@ -61,16 +106,19 @@ npm run test:verbose
 
 ```
 tests/
-├── website.test.js      # Main website tests
+├── website.test.js      # Main website and new pages tests
 ├── websocket.test.js    # WebSocket connectivity tests
-├── status-api.test.js   # Status API functionality tests
-├── api.test.js          # Main API endpoint tests
-└── security.test.js     # Security and SQL injection tests
+├── status-api.test.js   # Status API with new service structure
+├── api.test.js          # Main API with all new endpoints
+├── spells-api.test.js   # New spells service API tests
+└── security.test.js     # Comprehensive security tests for all services
 ```
 
 ## Expected Responses
 
-### Health Check (`/api/`)
+### Main API Examples
+
+#### Health Check (`/api/`)
 ```json
 {
   "status": "ok",
@@ -78,7 +126,7 @@ tests/
 }
 ```
 
-### Items List (`/api/items`)
+#### Items List (`/api/items`)
 ```json
 [
   {
@@ -88,7 +136,31 @@ tests/
 ]
 ```
 
-### Latest Prices (`/api/latest-prices`)
+#### Item Statistics (`/api/item-stats/<sku>`)
+```json
+{
+  "buy": {
+    "count": 12,
+    "keys": { "min": 2, "max": 4, "avg": 3.1 },
+    "metal": { "min": 11.33, "max": 69.22, "avg": 40.12 }
+  },
+  "sell": {
+    "count": 12,
+    "keys": { "min": 2, "max": 4, "avg": 3.1 },
+    "metal": { "min": 11.33, "max": 69.22, "avg": 40.12 }
+  }
+}
+```
+
+#### Bulk Lookup (`POST /api/items-bulk`)
+Request:
+```json
+{
+  "skus": ["40;11;kt-3", "202;11;australium"]
+}
+```
+
+Response:
 ```json
 [
   {
@@ -102,36 +174,72 @@ tests/
 ]
 ```
 
-### Individual Item (`/api/item/<sku>`)
+### Spells API Examples
+
+#### Spell Prediction (`/api/spell/predict`)
 ```json
 {
-  "name": "Strange Professional Killstreak Backburner",
-  "sku": "40;11;kt-3",
-  "source": "bptf",
-  "time": 1748874425,
-  "buy": { "keys": 4, "metal": 11.33 },
-  "sell": { "keys": 4, "metal": 69.22 }
+  "item_name": "Strange Rocket Launcher",
+  "spells": ["Exorcism"],
+  "spell_ids": [2002],
+  "base_price": {
+    "total_ref": 65.99,
+    "keys": 1,
+    "metal": 8.44,
+    "formatted": "1 keys, 8.4 ref"
+  },
+  "predictions": {
+    "low": { "total_ref": 1315.39, "formatted": "22 keys, 49.9 ref" },
+    "mid": { "total_ref": 1731.75, "formatted": "30 keys, 6.3 ref" },
+    "high": { "total_ref": 2356.61, "formatted": "40 keys, 56.1 ref" }
+  },
+  "market_data": {
+    "avg_flat_premium": 1665.76,
+    "sample_size": 206,
+    "confidence": "high"
+  }
 }
 ```
 
-### Status API (`/api/status`)
+#### Spells List (`/api/spell/spells`)
+```json
+[
+  { "id": 2003, "name": "Pumpkin Bombs" },
+  { "id": 2002, "name": "Exorcism" }
+]
+```
+
+### Status API (Updated Format)
 ```json
 {
   "services": [
     {
-      "name": "Item Pricer",
-      "pm2Name": "bptf-autopricer",
+      "name": "DB Handler",
       "status": "online",
-      "uptime": 37241649,
-      "restart": 23,
+      "category": "core",
+      "uptime": 5578018,
+      "restart": 0,
       "memory": 0,
-      "cpu": 0
+      "cpu": 0,
+      "uptimePercentage": 100,
+      "uptimeBars": [...]
     }
   ],
-  "backpack": { "website": "online" },
-  "steamLogin": { "login": "online" },
-  "tf2api": { "tf2api": "online" },
-  "webapi": { "webapi": "online" }
+  "backpack": { "website": "online", "uptimePercentage": 100 },
+  "steamLogin": { "login": "online", "uptimePercentage": 100 },
+  "relay": {
+    "relay": "online",
+    "backpackConnected": true,
+    "uptime": 55576434,
+    "messagesRelayed": 49633,
+    "connectedClients": 2
+  },
+  "spellHandler": {
+    "spellHandler": "online",
+    "database": "online",
+    "timestamp": "2025-09-26T00:16:54.571Z",
+    "uptimePercentage": 98
+  }
 }
 ```
 

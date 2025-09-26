@@ -4,10 +4,10 @@
   "description": "Test suite for pricedb.io services",
   "main": "index.js",
   "scripts": {
-    "test": "jest",
-    "test:watch": "jest --watch",
+    "test": "jest --no-coverage",
+    "test:watch": "jest --watch --no-coverage",
     "test:coverage": "jest --coverage",
-    "test:verbose": "jest --verbose"
+    "test:verbose": "jest --verbose --no-coverage"
   },
   "keywords": ["pricedb", "testing", "jest", "api"],
   "author": "",
